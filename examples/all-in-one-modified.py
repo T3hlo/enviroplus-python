@@ -159,7 +159,7 @@ factor = 1.3
 cpu_temps = [get_cpu_temperature()] * 5
 
 delay = 0.5  # Debounce the proximity tap
-mode = 0    # The starting mode
+mode = 7    # The starting mode
 last_page = 0
 light = 1
 
@@ -181,7 +181,8 @@ variables = ["temperature",
              "light",
              "oxidised",
              "reduced",
-             "nh3"]
+             "nh3",
+             "wifi"]
 
 def sensor_querry(cpu_temps):
     '''
@@ -270,8 +271,8 @@ try:
 
         # If the proximity crosses the threshold, toggle the mode
         if proximity > 1500 and time.time() - last_page > delay:
-            mode += 1
-            mode %= len(variables) +1
+            mode += 0
+            mode %= len(variables)
             last_page = time.time()
 
         # One mode for each variable
@@ -325,7 +326,7 @@ try:
         #     unit = "ug/m3"
         #     display_text(variables[mode], pm10, unit)
 
-        if mode == len(variables)+1:
+        if mode == 7:
             # Show wifi status
             display_status()
 
