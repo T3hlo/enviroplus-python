@@ -155,12 +155,12 @@ def save_data(data, message, output_dir='/home/pi/datasets/'):
 
 # Tuning factor for compensation. Decrease this number to adjust the
 # temperature down, and increase to adjust up
-factor = 1.3
+factor = 1.2
 
 cpu_temps = [get_cpu_temperature()] * 5
 
 delay = 0.5  # Debounce the proximity tap
-mode = 10     # The starting mode
+mode = 0    # The starting mode
 last_page = 0
 light = 1
 

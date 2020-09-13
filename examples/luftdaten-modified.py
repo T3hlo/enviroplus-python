@@ -153,7 +153,7 @@ def send_to_luftdaten(values, id):
 
 
 # Compensation factor for temperature
-comp_factor = 2.25
+comp_factor = 1.2
 
 # Raspberry Pi ID to send to Luftdaten
 id = "raspi-" + get_serial_number()
@@ -172,8 +172,6 @@ print("Wi-Fi: {}\n".format("connected" if check_wifi() else "disconnected"))
 
 time_since_update = 0
 update_time = time.time()
-
-display_status()
 
 # Main loop to read data, display, and send to Luftdaten
 while True:
