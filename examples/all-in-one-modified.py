@@ -4,6 +4,9 @@ import time
 import colorsys
 import sys
 import ST7735
+import csv
+import numpy as np
+
 try:
     # Transitional fix for breaking change in LTR559
     from ltr559 import LTR559
@@ -99,6 +102,16 @@ def get_cpu_temperature():
     return float(output[output.index('=') + 1:output.rindex("'")])
 
 
+def save_data(data, message, output_dir='/home/pi/datasets/'):
+    print(message)
+
+    with open(output_dir + 'sensor_data.csv', 'w') as f1:
+        writer = csv.writer(f1, delimiter=',')  # lineterminator='\n',
+        for row in data:
+            writer.writerow(row)
+    return [], time.time()
+
+
 # Tuning factor for compensation. Decrease this number to adjust the
 # temperature down, and increase to adjust up
 factor = 2.25
@@ -186,7 +199,7 @@ def sensor_querry(cpu_temps):
     else:
         pm10 = float(pm10.pm_ug_per_m3(10))
 
-    return temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temp
+    return temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps
 
 
 
@@ -194,6 +207,8 @@ def sensor_querry(cpu_temps):
 for v in variables:
     values[v] = [1] * WIDTH
 
+data = []
+start_time = time.time()
 # The main loop
 try:
     while True:
@@ -203,6 +218,8 @@ try:
         # Querry all sensors:
 
         temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps = sensor_querry(cpu_temps)
+
+        data.append(np.array([temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10]))
 
 
         # If the proximity crosses the threshold, toggle the mode
@@ -262,6 +279,11 @@ try:
             unit = "ug/m3"
             display_text(variables[mode], pm10, unit)
 
+        if (time.time()-start_time)/60 >180:
+            data, start_time = save_data(data, 'Scheduled data saving!')
+
+
 # Exit cleanly
 except KeyboardInterrupt:
-    pass
+    data, start_time = save_data(data, 'Saving data after exception!')
+
