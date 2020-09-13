@@ -2,6 +2,7 @@
 
 import time
 import colorsys
+from subprocess import check_output
 import sys
 import ST7735
 import csv
@@ -51,6 +52,16 @@ st7735 = ST7735.ST7735(
     spi_speed_hz=10000000
 )
 
+# Create dispaly for wifi status
+disp = ST7735.ST7735(
+    port=0,
+    cs=1,
+    dc=9,
+    backlight=12,
+    rotation=270,
+    spi_speed_hz=10000000
+)
+
 # Initialize display
 st7735.begin()
 
@@ -68,6 +79,22 @@ message = ""
 # The position of the top bar
 top_pos = 25
 
+# Display Raspberry Pi serial and Wi-Fi status on LCD
+def display_status():
+    wifi_status = "connected" if check_wifi() else "disconnected"
+    text_colour = (255, 255, 255)
+    back_colour = (0, 170, 170) if check_wifi() else (85, 15, 15)
+    id = get_serial_number()
+    message = "{}\nWi-Fi: {}".format(id, wifi_status)
+    img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    size_x, size_y = draw.textsize(message, font)
+    x = (WIDTH - size_x) / 2
+    y = (HEIGHT / 2) - (size_y / 2)
+    draw.rectangle((0, 0, 160, 80), back_colour)
+    draw.text((x, y), message, font=font, fill=text_colour)
+
+    st7735.display(img)
 
 # Displays data and text on the 0.96" LCD
 def display_text(variable, data, unit):
@@ -94,6 +121,20 @@ def display_text(variable, data, unit):
     draw.text((0, 0), message, font=font, fill=(0, 0, 0))
     st7735.display(img)
 
+# Get Raspberry Pi serial number to use as ID
+def get_serial_number():
+    with open('/proc/cpuinfo', 'r') as f:
+        for line in f:
+            if line[0:6] == 'Serial':
+                return line.split(":")[1].strip()
+
+
+# Check for Wi-Fi connection
+def check_wifi():
+    if check_output(['hostname', '-I']):
+        return True
+    else:
+        return False
 
 # Get the temperature of the CPU for compensation
 def get_cpu_temperature():
@@ -114,12 +155,12 @@ def save_data(data, message, output_dir='/home/pi/datasets/'):
 
 # Tuning factor for compensation. Decrease this number to adjust the
 # temperature down, and increase to adjust up
-factor = 2.25
+factor = 1.3
 
 cpu_temps = [get_cpu_temperature()] * 5
 
 delay = 0.5  # Debounce the proximity tap
-mode = 0     # The starting mode
+mode = 10     # The starting mode
 last_page = 0
 light = 1
 
@@ -134,8 +175,6 @@ variables = ["temperature",
              "pm1",
              "pm25",
              "pm10"]
-
-values = {}
 
 def sensor_querry(cpu_temps):
     '''
@@ -201,8 +240,7 @@ def sensor_querry(cpu_temps):
 
     return temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps
 
-
-
+values = {}
 
 for v in variables:
     values[v] = [1] * WIDTH
@@ -214,18 +252,15 @@ try:
     while True:
         proximity = ltr559.get_proximity()
 
-
         # Querry all sensors:
-
         temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps = sensor_querry(cpu_temps)
-
         data.append(np.array([temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10]))
 
 
         # If the proximity crosses the threshold, toggle the mode
         if proximity > 1500 and time.time() - last_page > delay:
             mode += 1
-            mode %= len(variables)
+            mode %= len(variables) +1
             last_page = time.time()
 
         # One mode for each variable
@@ -278,6 +313,10 @@ try:
             # variable = "pm10"
             unit = "ug/m3"
             display_text(variables[mode], pm10, unit)
+
+        if mode == 10:
+            # Show wifi status
+            display_status()
 
         if (time.time()-start_time)/60 >180:
             data, start_time = save_data(data, 'Scheduled data saving!')
