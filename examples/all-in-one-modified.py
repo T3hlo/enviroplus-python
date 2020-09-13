@@ -325,7 +325,7 @@ try:
         #     unit = "ug/m3"
         #     display_text(variables[mode], pm10, unit)
 
-        if mode == 10:
+        if mode == len(variables)+1:
             # Show wifi status
             display_status()
 
