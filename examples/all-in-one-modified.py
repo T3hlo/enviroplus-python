@@ -124,7 +124,7 @@ variables = ["temperature",
 
 values = {}
 
-def sensor_querry():
+def sensor_querry(cpu_temps):
     '''
     Get data from all sensors.
     '''
@@ -186,7 +186,7 @@ def sensor_querry():
     else:
         pm10 = float(pm10.pm_ug_per_m3(10))
 
-    return temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10
+    return temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temp
 
 
 
@@ -202,7 +202,7 @@ try:
 
         # Querry all sensors:
 
-        temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10 = sensor_querry()
+        temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps = sensor_querry(cpu_temps)
 
 
         # If the proximity crosses the threshold, toggle the mode
