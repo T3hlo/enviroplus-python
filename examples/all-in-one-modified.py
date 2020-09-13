@@ -3,7 +3,6 @@
 import time
 import colorsys
 from subprocess import check_output
-import sys
 import ST7735
 import csv
 import numpy as np
@@ -155,7 +154,7 @@ def save_data(data, message, output_dir='/home/pi/datasets/'):
 
 # Tuning factor for compensation. Decrease this number to adjust the
 # temperature down, and increase to adjust up
-factor = 1.2
+factor = 1.3
 
 cpu_temps = [get_cpu_temperature()] * 5
 
@@ -165,16 +164,24 @@ last_page = 0
 light = 1
 
 # Create a values dict to store the data
+# variables = ["temperature",
+#              "pressure",
+#              "humidity",
+#              "light",
+#              "oxidised",
+#              "reduced",
+#              "nh3",
+#              "pm1",
+#              "pm25",
+#              "pm10"]
+
 variables = ["temperature",
              "pressure",
              "humidity",
              "light",
              "oxidised",
              "reduced",
-             "nh3",
-             "pm1",
-             "pm25",
-             "pm10"]
+             "nh3"]
 
 def sensor_querry(cpu_temps):
     '''
@@ -213,32 +220,33 @@ def sensor_querry(cpu_temps):
     nh3 = gas.read_all()
     nh3 = nh3.nh3 / 1000
 
-
     # PM1
-    try:
-        pm1 = pms5003.read()
-    except pmsReadTimeoutError:
-        logging.warning("Failed to read PMS5003")
-    else:
-        pm1 = float(pm1.pm_ug_per_m3(1.0))
+    # try:
+    #     pm1 = pms5003.read()
+    # except pmsReadTimeoutError:
+    #     logging.warning("Failed to read PMS5003")
+    # else:
+    #     pm1 = float(pm1.pm_ug_per_m3(1.0))
+    #
+    # # PM2.5
+    # try:
+    #     pm25 = pms5003.read()
+    # except pmsReadTimeoutError:
+    #     logging.warning("Failed to read PMS5003")
+    # else:
+    #     pm25 = float(pm25.pm_ug_per_m3(2.5))
+    #
+    # # PM10
+    # try:
+    #     pm10 = pms5003.read()
+    # except pmsReadTimeoutError:
+    #     logging.warning("Failed to read PMS5003")
+    # else:
+    #     pm10 = float(pm10.pm_ug_per_m3(10))
 
-    # PM2.5
-    try:
-        pm25 = pms5003.read()
-    except pmsReadTimeoutError:
-        logging.warning("Failed to read PMS5003")
-    else:
-        pm25 = float(pm25.pm_ug_per_m3(2.5))
+   # return temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps
+    return temp, pres, humi, light, oxi, redu, nh3, cpu_temps
 
-    # PM10
-    try:
-        pm10 = pms5003.read()
-    except pmsReadTimeoutError:
-        logging.warning("Failed to read PMS5003")
-    else:
-        pm10 = float(pm10.pm_ug_per_m3(10))
-
-    return temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps
 
 values = {}
 
@@ -253,8 +261,11 @@ try:
         proximity = ltr559.get_proximity()
 
         # Querry all sensors:
-        temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps = sensor_querry(cpu_temps)
-        data.append(np.array([temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10]))
+        #temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps = sensor_querry(cpu_temps)
+        # data.append(np.array([temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10]))
+
+        temp, pres, humi, light, oxi, redu, nh3, cpu_temps = sensor_querry(cpu_temps)
+        data.append(np.array([temp, pres, humi, light, oxi, redu, nh3]))
 
 
         # If the proximity crosses the threshold, toggle the mode
@@ -299,20 +310,20 @@ try:
             unit = "kO"
             display_text(variables[mode], nh3, unit)
 
-        if mode == 7:
-            # variable = "pm1"
-            unit = "ug/m3"
-            display_text(variables[mode], pm1, unit)
-
-        if mode == 8:
-            # variable = "pm25"
-            unit = "ug/m3"
-            display_text(variables[mode], pm25, unit)
-
-        if mode == 9:
-            # variable = "pm10"
-            unit = "ug/m3"
-            display_text(variables[mode], pm10, unit)
+        # if mode == 7:
+        #     # variable = "pm1"
+        #     unit = "ug/m3"
+        #     display_text(variables[mode], pm1, unit)
+        #
+        # if mode == 8:
+        #     # variable = "pm25"
+        #     unit = "ug/m3"
+        #     display_text(variables[mode], pm25, unit)
+        #
+        # if mode == 9:
+        #     # variable = "pm10"
+        #     unit = "ug/m3"
+        #     display_text(variables[mode], pm10, unit)
 
         if mode == 10:
             # Show wifi status
