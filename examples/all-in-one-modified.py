@@ -6,6 +6,7 @@ from subprocess import check_output
 import ST7735
 import csv
 import numpy as np
+from datetime import datetime
 
 try:
     # Transitional fix for breaking change in LTR559
@@ -159,7 +160,7 @@ factor = 1.3
 cpu_temps = [get_cpu_temperature()] * 5
 
 delay = 0.5  # Debounce the proximity tap
-mode = 7    # The starting mode
+mode = 0  # The starting mode
 last_page = 0
 light = 1
 
@@ -188,6 +189,9 @@ def sensor_querry(cpu_temps):
     '''
     Get data from all sensors.
     '''
+
+    # get timestamp
+    timestamp = datetime.now().strftime("%Y-%m-%d, %H:%M:%S")  # current date and time
 
     # temperature
     cpu_temp = get_cpu_temperature()
@@ -246,7 +250,7 @@ def sensor_querry(cpu_temps):
     #     pm10 = float(pm10.pm_ug_per_m3(10))
 
    # return temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps
-    return temp, pres, humi, light, oxi, redu, nh3, cpu_temps
+    return timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps
 
 
 values = {}
@@ -265,13 +269,13 @@ try:
         #temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps = sensor_querry(cpu_temps)
         # data.append(np.array([temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10]))
 
-        temp, pres, humi, light, oxi, redu, nh3, cpu_temps = sensor_querry(cpu_temps)
-        data.append(np.array([temp, pres, humi, light, oxi, redu, nh3]))
+        timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps = sensor_querry(cpu_temps)
+        data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3]))
 
 
         # If the proximity crosses the threshold, toggle the mode
         if proximity > 1500 and time.time() - last_page > delay:
-            mode += 0
+            mode += 1       
             mode %= len(variables)
             last_page = time.time()
 
@@ -336,5 +340,6 @@ try:
 
 # Exit cleanly
 except KeyboardInterrupt:
-    data, start_time = save_data(data, 'Saving data after exception!')
+    #data, start_time = save_data(data, 'Saving data after exception!')
+    pass
 
