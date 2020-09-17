@@ -7,6 +7,7 @@ import ST7735
 import csv
 import numpy as np
 from datetime import datetime
+import requests
 
 try:
     # Transitional fix for breaking change in LTR559
@@ -157,6 +158,10 @@ def save_data(data, message, output_dir='/home/pi/datasets/'):
 # temperature down, and increase to adjust up
 factor = 1.3
 
+# Raspberry Pi ID to send to Luftdaten
+id = "raspi-" + get_serial_number()
+
+
 cpu_temps = [get_cpu_temperature()] * 5
 
 delay = 0.5  # Debounce the proximity tap
@@ -165,17 +170,6 @@ last_page = 0
 light = 1
 
 # Create a values dict to store the data
-# variables = ["temperature",
-#              "pressure",
-#              "humidity",
-#              "light",
-#              "oxidised",
-#              "reduced",
-#              "nh3",
-#              "pm1",
-#              "pm25",
-#              "pm10"]
-
 variables = ["temperature",
              "pressure",
              "humidity",
@@ -183,7 +177,19 @@ variables = ["temperature",
              "oxidised",
              "reduced",
              "nh3",
+             "pm1",
+             "pm25",
+             "pm10",
              "wifi"]
+#
+# variables = ["temperature",
+#              "pressure",
+#              "humidity",
+#              "light",
+#              "oxidised",
+#              "reduced",
+#              "nh3",
+#              "wifi"]
 
 def sensor_querry(cpu_temps):
     '''
@@ -226,31 +232,71 @@ def sensor_querry(cpu_temps):
     nh3 = nh3.nh3 / 1000
 
     # PM1
-    # try:
-    #     pm1 = pms5003.read()
-    # except pmsReadTimeoutError:
-    #     logging.warning("Failed to read PMS5003")
-    # else:
-    #     pm1 = float(pm1.pm_ug_per_m3(1.0))
-    #
-    # # PM2.5
-    # try:
-    #     pm25 = pms5003.read()
-    # except pmsReadTimeoutError:
-    #     logging.warning("Failed to read PMS5003")
-    # else:
-    #     pm25 = float(pm25.pm_ug_per_m3(2.5))
-    #
-    # # PM10
-    # try:
-    #     pm10 = pms5003.read()
-    # except pmsReadTimeoutError:
-    #     logging.warning("Failed to read PMS5003")
-    # else:
-    #     pm10 = float(pm10.pm_ug_per_m3(10))
+    try:
+        pm1 = pms5003.read()
+    except pmsReadTimeoutError:
+        logging.warning("Failed to read PMS5003")
+    else:
+        pm1 = float(pm1.pm_ug_per_m3(1.0))
 
-   # return temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps
-    return timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps
+    # PM2.5
+    try:
+        pm25 = pms5003.read()
+    except pmsReadTimeoutError:
+        logging.warning("Failed to read PMS5003")
+    else:
+        pm25 = float(pm25.pm_ug_per_m3(2.5))
+
+    # PM10
+    try:
+        pm10 = pms5003.read()
+    except pmsReadTimeoutError:
+        logging.warning("Failed to read PMS5003")
+    else:
+        pm10 = float(pm10.pm_ug_per_m3(10))
+
+    return timestamp, temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps
+    #return timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps
+
+def send_to_luftdaten(values, id):
+    pm_values = dict(i for i in values.items() if i[0].startswith("P"))
+    temp_values = dict(i for i in values.items() if not i[0].startswith("P"))
+
+    pm_values_json = [{"value_type": key, "value": val} for key, val in pm_values.items()]
+    temp_values_json = [{"value_type": key, "value": val} for key, val in temp_values.items()]
+
+    resp_1 = requests.post(
+        "https://api.luftdaten.info/v1/push-sensor-data/",
+        json={
+            "software_version": "enviro-plus 0.0.1",
+            "sensordatavalues": pm_values_json
+        },
+        headers={
+            "X-PIN": "1",
+            "X-Sensor": id,
+            "Content-Type": "application/json",
+            "cache-control": "no-cache"
+        }
+    )
+
+    resp_2 = requests.post(
+        "https://api.luftdaten.info/v1/push-sensor-data/",
+        json={
+            "software_version": "enviro-plus 0.0.1",
+            "sensordatavalues": temp_values_json
+        },
+        headers={
+            "X-PIN": "11",
+            "X-Sensor": id,
+            "Content-Type": "application/json",
+            "cache-control": "no-cache"
+        }
+    )
+
+    if resp_1.ok and resp_2.ok:
+        return True
+    else:
+        return False
 
 
 values = {}
@@ -260,22 +306,42 @@ for v in variables:
 
 data = []
 start_time = time.time()
+
+time_since_update = 0
+update_time = time.time()
+
+
 # The main loop
 try:
     while True:
         proximity = ltr559.get_proximity()
 
         # Querry all sensors:
-        #temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps = sensor_querry(cpu_temps)
-        # data.append(np.array([temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10]))
+        timestamp, temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps = sensor_querry(cpu_temps)
+        data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10]))
 
-        timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps = sensor_querry(cpu_temps)
-        data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3]))
+        #timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps = sensor_querry(cpu_temps)
+        #data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3]))
+
+        # Send to luftdaten
+        time_since_update = time.time() - update_time
+
+        if time_since_update > 10:
+            to_send = {}
+            to_send["temperature"] = "{:.2f}".format(temp)
+            to_send["pressure"] = "{:.2f}".format(pres)
+            to_send["humidity"] = "{:.2f}".format(humi)
+            to_send["P2"] = str(pm25)
+            to_send["P1"] = str(pm10)
+
+            resp = send_to_luftdaten(to_send, id)
+            update_time = time.time()
+            print("Response: {}\n".format("ok" if resp else "failed"))
 
 
         # If the proximity crosses the threshold, toggle the mode
         if proximity > 1500 and time.time() - last_page > delay:
-            mode += 1       
+            mode += 1
             mode %= len(variables)
             last_page = time.time()
 
@@ -315,22 +381,22 @@ try:
             unit = "kO"
             display_text(variables[mode], nh3, unit)
 
-        # if mode == 7:
-        #     # variable = "pm1"
-        #     unit = "ug/m3"
-        #     display_text(variables[mode], pm1, unit)
-        #
-        # if mode == 8:
-        #     # variable = "pm25"
-        #     unit = "ug/m3"
-        #     display_text(variables[mode], pm25, unit)
-        #
-        # if mode == 9:
-        #     # variable = "pm10"
-        #     unit = "ug/m3"
-        #     display_text(variables[mode], pm10, unit)
-
         if mode == 7:
+            # variable = "pm1"
+            unit = "ug/m3"
+            display_text(variables[mode], pm1, unit)
+
+        if mode == 8:
+            # variable = "pm25"
+            unit = "ug/m3"
+            display_text(variables[mode], pm25, unit)
+
+        if mode == 9:
+            # variable = "pm10"
+            unit = "ug/m3"
+            display_text(variables[mode], pm10, unit)
+
+        if mode == 10:
             # Show wifi status
             display_status()
 
