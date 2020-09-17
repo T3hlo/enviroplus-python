@@ -326,7 +326,7 @@ try:
         # Send to luftdaten
         time_since_update = time.time() - update_time
 
-        if time_since_update > 10:
+        if time_since_update > 145:
             to_send = {}
             to_send["temperature"] = "{:.2f}".format(temp)
             to_send["pressure"] = "{:.2f}".format(pres)
