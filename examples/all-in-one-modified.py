@@ -27,6 +27,11 @@ from PIL import ImageFont
 from fonts.ttf import RobotoMedium as UserFont
 import logging
 
+import RPi.GPIO as GPIO
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+GPIO.setup(4,GPIO.OUT)
+
 logging.basicConfig(
     format='%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s',
     level=logging.INFO,
@@ -261,10 +266,10 @@ def sensor_querry(cpu_temps):
     humi = bme280.get_humidity()
 
     # light
-    if proximity < 10:
-        light = ltr559.get_lux()
-    else:
-        light = 1
+    # if proximity < 10:
+    #     light = ltr559.get_lux()
+    # else:
+    #     light = 1
 
     # oxidised gas
     oxi = gas.read_all()
@@ -362,6 +367,12 @@ time.sleep(5)
 owl()
 time.sleep(10)
 
+def flash_LED(seconds):
+    display_status(time_since_update)
+    GPIO.output(4, GPIO.HIGH)
+    time.sleep(seconds)
+    GPIO.output(4, GPIO.LOW)
+
 
 # The main loop
 try:
@@ -390,9 +401,11 @@ try:
             update_time = time.time()
             print("Response: {}\n".format("ok" if resp else "failed"))
             display_luftdaten(resp)
+            for i in range(0,3):
+                flash_LED(0.1)
 
         else:
-            display_status(time_since_update)
+            flash_LED(0.1)
 
 
         # If the proximity crosses the threshold, toggle the mode
@@ -405,6 +418,8 @@ try:
 
         if (time.time()-start_time)/60 >180:
             data, start_time = save_data(data, 'Scheduled data saving!')
+            for i in range(0,5):
+                flash_LED(0.1)
 
 
 # Exit cleanly
