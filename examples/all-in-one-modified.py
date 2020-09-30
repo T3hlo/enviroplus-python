@@ -2,6 +2,7 @@
 
 import time
 import colorsys
+import sys
 from subprocess import check_output
 import ST7735
 import csv
@@ -38,7 +39,9 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S')
 
 logging.info("""all-in-one.py - Displays readings from all of Enviro plus' sensors
+
 Press Ctrl+C to exit!
+
 """)
 
 # BME280 temperature/pressure/humidity sensor
@@ -47,33 +50,30 @@ bme280 = BME280()
 # PMS5003 particulate sensor
 pms5003 = PMS5003()
 
-# Create LCD instance
-disp = ST7735.ST7735(
+# Create ST7735 LCD display class
+st7735 = ST7735.ST7735(
     port=0,
     cs=1,
     dc=9,
-    backlight=5,
+    backlight=12,
     rotation=270,
     spi_speed_hz=10000000
 )
 
 # Initialize display
-disp.begin()
+st7735.begin()
 
-# Width and height to calculate text position
-WIDTH = disp.width
-HEIGHT = disp.height
+WIDTH = st7735.width
+HEIGHT = st7735.height
 
 # Set up canvas and font
 img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
 draw = ImageDraw.Draw(img)
-font_size = 20
+font_size = 16
 font = ImageFont.truetype(UserFont, font_size)
-#
+
 message = ""
-#
-# # The position of the top bar
-# top_pos = 25
+
 
 # Display Raspberry Pi serial and Wi-Fi status on LCD
 def display_status(time_since_update):
@@ -89,7 +89,7 @@ def display_status(time_since_update):
     y = (HEIGHT / 2) - (size_y / 2)
     draw.rectangle((0, 0, 160, 80), back_colour)
     draw.text((x, y), message, font=font, fill=text_colour)
-    disp.display(img)
+    st7735.display(img)
 def display_luftdaten(resp):
     now = datetime.now()
     now.strftime('%Y-%m-%d %H:%M:%S')
@@ -108,7 +108,7 @@ def display_luftdaten(resp):
     y = (HEIGHT / 2) - (size_y / 2)
     draw.rectangle((0, 0, 160, 80), back_colour)
     draw.text((x, y), message, font=font, fill=text_colour)
-    disp.display(img)
+    st7735.display(img)
 
 def display_start():
     wifi_status = "connected" if check_wifi() else "disconnected"
@@ -123,7 +123,7 @@ def display_start():
     y = (HEIGHT / 2) - (size_y / 2)
     draw.rectangle((0, 0, 160, 80), back_colour)
     draw.text((x, y), message, font=font, fill=text_colour)
-    disp.display(img)
+    st7735.display(img)
 
 
 def owl():
@@ -137,7 +137,7 @@ def owl():
     y = (HEIGHT / 2) - (size_y / 2)
     draw.rectangle((0, 0, 160, 80), back_colour)
     draw.text((x, y), message, font=font, fill=text_colour)
-    disp.display(img)
+    st7735.display(img)
 
 
 # Displays data and text on the 0.96" LCD
@@ -164,9 +164,6 @@ def display_text(variable, data, unit):
     # Write the text at the top in black
     draw.text((0, 0), message, font=font, fill=(0, 0, 0))
     st7735.display(img)
-
-
-
 
 # Get Raspberry Pi serial number to use as ID
 def get_serial_number():
@@ -207,10 +204,6 @@ factor = 1.3
 # Raspberry Pi ID to send to Luftdaten
 id = "raspi-" + get_serial_number()
 
-
-# Text settings
-font_size = 16
-font = ImageFont.truetype(UserFont, font_size)
 
 cpu_temps = [get_cpu_temperature()] * 5
 
