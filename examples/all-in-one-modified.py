@@ -8,6 +8,7 @@ import csv
 import numpy as np
 from datetime import datetime
 import requests
+import time
 
 try:
     # Transitional fix for breaking change in LTR559
@@ -43,50 +44,38 @@ bme280 = BME280()
 # PMS5003 particulate sensor
 pms5003 = PMS5003()
 
-# Create ST7735 LCD display class
-st7735 = ST7735.ST7735(
-    port=0,
-    cs=1,
-    dc=9,
-    backlight=12,
-    rotation=270,
-    spi_speed_hz=10000000
-)
-
-# Create dispaly for wifi status
+# Create LCD instance
 disp = ST7735.ST7735(
     port=0,
     cs=1,
     dc=9,
-    backlight=12,
+    backlight=5,
     rotation=270,
     spi_speed_hz=10000000
 )
 
 # Initialize display
-st7735.begin()
+disp.begin()
 
-WIDTH = st7735.width
-HEIGHT = st7735.height
 
-# Set up canvas and font
-img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
-draw = ImageDraw.Draw(img)
-font_size = 20
-font = ImageFont.truetype(UserFont, font_size)
-
-message = ""
-
-# The position of the top bar
-top_pos = 25
+# # Set up canvas and font
+# img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
+# draw = ImageDraw.Draw(img)
+# font_size = 20
+# font = ImageFont.truetype(UserFont, font_size)
+#
+# message = ""
+#
+# # The position of the top bar
+# top_pos = 25
 
 # Display Raspberry Pi serial and Wi-Fi status on LCD
-def display_status():
+def display_status(time_since_update):
     wifi_status = "connected" if check_wifi() else "disconnected"
     text_colour = (255, 255, 255)
     back_colour = (0, 170, 170) if check_wifi() else (85, 15, 15)
     id = get_serial_number()
-    message = "{}\nWi-Fi: {}".format(id, wifi_status)
+    message = "{}\nWi-Fi: {}\n{} min since update".format(id, wifi_status, round(time_since_update/60, 1))
     img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
     draw = ImageDraw.Draw(img)
     size_x, size_y = draw.textsize(message, font)
@@ -94,8 +83,56 @@ def display_status():
     y = (HEIGHT / 2) - (size_y / 2)
     draw.rectangle((0, 0, 160, 80), back_colour)
     draw.text((x, y), message, font=font, fill=text_colour)
+    disp.display(img)
+def display_luftdaten(resp):
+    now = datetime.now()
+    now.strftime('%Y-%m-%d %H:%M:%S')
+    text_colour = (255, 255, 255)
+    back_colour = (0, 102, 51) if resp else (85, 15, 15)
+    if resp:
+        p ='OK'
+    else:
+        p = 'failed'
 
-    st7735.display(img)
+    message = "Luftdaten\nUpload: {}\n{}".format(p, now.strftime('%Y-%m-%d %H:%M:%S'))
+    img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    size_x, size_y = draw.textsize(message, font)
+    x = (WIDTH - size_x) / 2
+    y = (HEIGHT / 2) - (size_y / 2)
+    draw.rectangle((0, 0, 160, 80), back_colour)
+    draw.text((x, y), message, font=font, fill=text_colour)
+    disp.display(img)
+
+def display_start():
+    wifi_status = "connected" if check_wifi() else "disconnected"
+    text_colour = (0, 0, 0)
+    back_colour = (255, 255, 0)
+    id = get_serial_number()
+    message = "System waking up.\nWi-Fi: {}\nPlease wait...".format(wifi_status)
+    img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    size_x, size_y = draw.textsize(message, font)
+    x = (WIDTH - size_x) / 2
+    y = (HEIGHT / 2) - (size_y / 2)
+    draw.rectangle((0, 0, 160, 80), back_colour)
+    draw.text((x, y), message, font=font, fill=text_colour)
+    disp.display(img)
+
+
+def owl():
+    back_colour = (0, 0, 0)
+    text_colour = (255, 255, 0)
+    message = "      .___,\n___('v')___\n  '''-\._./-''\n        ^ ^  "
+    img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    size_x, size_y = draw.textsize(message, font)
+    x = (WIDTH - size_x) / 2
+    y = (HEIGHT / 2) - (size_y / 2)
+    draw.rectangle((0, 0, 160, 80), back_colour)
+    draw.text((x, y), message, font=font, fill=text_colour)
+    disp.display(img)
+
 
 # Displays data and text on the 0.96" LCD
 def display_text(variable, data, unit):
@@ -121,6 +158,9 @@ def display_text(variable, data, unit):
     # Write the text at the top in black
     draw.text((0, 0), message, font=font, fill=(0, 0, 0))
     st7735.display(img)
+
+
+
 
 # Get Raspberry Pi serial number to use as ID
 def get_serial_number():
@@ -161,6 +201,13 @@ factor = 1.3
 # Raspberry Pi ID to send to Luftdaten
 id = "raspi-" + get_serial_number()
 
+# Width and height to calculate text position
+WIDTH = disp.width
+HEIGHT = disp.height
+
+# Text settings
+font_size = 16
+font = ImageFont.truetype(UserFont, font_size)
 
 cpu_temps = [get_cpu_temperature()] * 5
 
@@ -310,11 +357,16 @@ start_time = time.time()
 time_since_update = 0
 update_time = time.time()
 
+display_start()
+time.sleep(5)
+owl()
+time.sleep(10)
+
 
 # The main loop
 try:
     while True:
-        proximity = ltr559.get_proximity()
+        #proximity = ltr559.get_proximity()
 
         # Querry all sensors:
         timestamp, temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps = sensor_querry(cpu_temps)
@@ -337,68 +389,19 @@ try:
             resp = send_to_luftdaten(to_send, id)
             update_time = time.time()
             print("Response: {}\n".format("ok" if resp else "failed"))
+            display_luftdaten(resp)
+
+        else:
+            display_status(time_since_update)
 
 
         # If the proximity crosses the threshold, toggle the mode
-        if proximity > 1500 and time.time() - last_page > delay:
-            mode += 1
-            mode %= len(variables)
-            last_page = time.time()
+        # if proximity > 1500 and time.time() - last_page > delay:
+        #     mode += 1
+        #     mode %= len(variables)
+        #     last_page = time.time()
 
-        # One mode for each variable
-        if mode == 0:
-            # variable = "temperature"
-            unit = "C"
-            display_text(variables[mode], temp, unit)
 
-        if mode == 1:
-            # variable = "pressure"
-            unit = "hPa"
-            display_text(variables[mode], pres, unit)
-
-        if mode == 2:
-            # variable = "humidity"
-            unit = "%"
-            display_text(variables[mode], humi, unit)
-
-        if mode == 3:
-            # variable = "light"
-            unit = "Lux"
-            display_text(variables[mode], light, unit)
-
-        if mode == 4:
-            # variable = "oxidised"
-            unit = "kO"
-            display_text(variables[mode], oxi, unit)
-
-        if mode == 5:
-            # variable = "reduced"
-            unit = "kO"
-            display_text(variables[mode], redu, unit)
-
-        if mode == 6:
-            # variable = "nh3"
-            unit = "kO"
-            display_text(variables[mode], nh3, unit)
-
-        if mode == 7:
-            # variable = "pm1"
-            unit = "ug/m3"
-            display_text(variables[mode], pm1, unit)
-
-        if mode == 8:
-            # variable = "pm25"
-            unit = "ug/m3"
-            display_text(variables[mode], pm25, unit)
-
-        if mode == 9:
-            # variable = "pm10"
-            unit = "ug/m3"
-            display_text(variables[mode], pm10, unit)
-
-        if mode == 10:
-            # Show wifi status
-            display_status()
 
         if (time.time()-start_time)/60 >180:
             data, start_time = save_data(data, 'Scheduled data saving!')
