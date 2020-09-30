@@ -26,8 +26,8 @@ from PIL import ImageDraw
 from PIL import ImageFont
 from fonts.ttf import RobotoMedium as UserFont
 import logging
-
 import RPi.GPIO as GPIO
+
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 GPIO.setup(4,GPIO.OUT)
@@ -38,9 +38,7 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S')
 
 logging.info("""all-in-one.py - Displays readings from all of Enviro plus' sensors
-
 Press Ctrl+C to exit!
-
 """)
 
 # BME280 temperature/pressure/humidity sensor
@@ -405,6 +403,7 @@ try:
                 flash_LED(0.1)
 
         else:
+            display_status(time_since_update)
             flash_LED(0.1)
 
 
@@ -426,4 +425,3 @@ try:
 except KeyboardInterrupt:
     #data, start_time = save_data(data, 'Saving data after exception!')
     pass
-
