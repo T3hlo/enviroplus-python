@@ -60,14 +60,17 @@ disp = ST7735.ST7735(
 # Initialize display
 disp.begin()
 
+# Width and height to calculate text position
+WIDTH = disp.width
+HEIGHT = disp.height
 
-# # Set up canvas and font
-# img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
-# draw = ImageDraw.Draw(img)
-# font_size = 20
-# font = ImageFont.truetype(UserFont, font_size)
+# Set up canvas and font
+img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
+draw = ImageDraw.Draw(img)
+font_size = 20
+font = ImageFont.truetype(UserFont, font_size)
 #
-# message = ""
+message = ""
 #
 # # The position of the top bar
 # top_pos = 25
@@ -204,9 +207,6 @@ factor = 1.3
 # Raspberry Pi ID to send to Luftdaten
 id = "raspi-" + get_serial_number()
 
-# Width and height to calculate text position
-WIDTH = disp.width
-HEIGHT = disp.height
 
 # Text settings
 font_size = 16
