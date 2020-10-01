@@ -368,53 +368,57 @@ def flash_LED(seconds):
 # The main loop
 try:
     while True:
-        #proximity = ltr559.get_proximity()
+        try:
+            #proximity = ltr559.get_proximity()
 
-        # Querry all sensors:
-        timestamp, temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps = sensor_querry(cpu_temps)
-        data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10]))
+            # Querry all sensors:
+            timestamp, temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps = sensor_querry(cpu_temps)
+            data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10]))
 
-        #timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps = sensor_querry(cpu_temps)
-        #data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3]))
+            #timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps = sensor_querry(cpu_temps)
+            #data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3]))
 
-        # Send to luftdaten
-        time_since_update = time.time() - update_time
+            # Send to luftdaten
+            time_since_update = time.time() - update_time
 
-        if time_since_update > 145:
-            to_send = {}
-            to_send["temperature"] = "{:.2f}".format(temp)
-            to_send["pressure"] = "{:.2f}".format(pres)
-            to_send["humidity"] = "{:.2f}".format(humi)
-            to_send["P2"] = str(pm25)
-            to_send["P1"] = str(pm10)
+            if time_since_update > 145:
+                to_send = {}
+                to_send["temperature"] = "{:.2f}".format(temp)
+                to_send["pressure"] = "{:.2f}".format(pres)
+                to_send["humidity"] = "{:.2f}".format(humi)
+                to_send["P2"] = str(pm25)
+                to_send["P1"] = str(pm10)
 
-            resp = send_to_luftdaten(to_send, id)
-            update_time = time.time()
-            print("Response: {}\n".format("ok" if resp else "failed"))
-            display_luftdaten(resp)
-            for i in range(0,3):
+                resp = send_to_luftdaten(to_send, id)
+                update_time = time.time()
+                print("Response: {}\n".format("ok" if resp else "failed"))
+                display_luftdaten(resp)
+                for i in range(0,3):
+                    flash_LED(0.1)
+
+            else:
+                display_status(time_since_update)
                 flash_LED(0.1)
 
-        else:
-            display_status(time_since_update)
-            flash_LED(0.1)
 
-
-        # If the proximity crosses the threshold, toggle the mode
-        # if proximity > 1500 and time.time() - last_page > delay:
-        #     mode += 1
-        #     mode %= len(variables)
-        #     last_page = time.time()
+            # If the proximity crosses the threshold, toggle the mode
+            # if proximity > 1500 and time.time() - last_page > delay:
+            #     mode += 1
+            #     mode %= len(variables)
+            #     last_page = time.time()
 
 
 
-        if (time.time()-start_time)/60 >180:
-            data, start_time = save_data(data, 'Scheduled data saving!')
-            for i in range(0,5):
-                flash_LED(0.1)
+            if (time.time()-start_time)/60 >180:
+                data, start_time = save_data(data, 'Scheduled data saving!')
+                for i in range(0,5):
+                    flash_LED(0.1)
+        except Exception as e:
+            print(e)
+
 
 
 # Exit cleanly
 except KeyboardInterrupt:
     #data, start_time = save_data(data, 'Saving data after exception!')
-    pass
+    sys.exit()
