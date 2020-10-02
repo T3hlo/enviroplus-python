@@ -412,6 +412,7 @@ try:
                     flash_LED(0.1)
         except Exception as e:
             print(e)
+            logging.error(e)
 
 
 
