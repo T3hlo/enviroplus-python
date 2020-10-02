@@ -191,8 +191,8 @@ def sensor_querry(cpu_temps):
 
 
 
-for v in variables:
-    values[v] = [1] * WIDTH
+# for v in variables:
+#     values[v] = [1] * WIDTH
 
 # The main loop
 try:

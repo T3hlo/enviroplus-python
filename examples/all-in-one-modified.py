@@ -21,7 +21,7 @@ except ImportError:
 from bme280 import BME280
 from pms5003 import PMS5003, ReadTimeoutError as pmsReadTimeoutError
 from enviroplus import gas
-from subprocess import PIPE, Popen
+from subprocess import PIPE, Popen, check_output
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
@@ -174,10 +174,12 @@ def get_serial_number():
 
 
 # Check for Wi-Fi connection
+# Ping google
 def check_wifi():
-    if check_output(['hostname', '-I']):
+    try:
+        check_output(["ping", "-c", "1", "google.com"])
         return True
-    else:
+    except:
         return False
 
 # Get the temperature of the CPU for compensation
