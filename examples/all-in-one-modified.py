@@ -403,15 +403,7 @@ try:
                 flash_LED(0.1)
 
 
-            # If the proximity crosses the threshold, toggle the mode
-            # if proximity > 1500 and time.time() - last_page > delay:
-            #     mode += 1
-            #     mode %= len(variables)
-            #     last_page = time.time()
-
-
-
-            if (time.time()-start_time)/60 >180:
+            if (time.time()-start_time)/60 >10:
                 data, start_time = save_data(data, 'Scheduled data saving!')
                 for i in range(0,5):
                     flash_LED(0.1)
