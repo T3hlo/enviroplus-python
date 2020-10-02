@@ -28,6 +28,8 @@ from PIL import ImageFont
 from fonts.ttf import RobotoMedium as UserFont
 import logging
 import RPi.GPIO as GPIO
+import logging
+
 
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
@@ -367,6 +369,7 @@ def flash_LED(seconds):
     GPIO.output(4, GPIO.LOW)
 
 
+logging.error('Error:')
 # The main loop
 try:
     while True:
