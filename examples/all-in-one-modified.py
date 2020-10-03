@@ -10,6 +10,8 @@ import numpy as np
 from datetime import datetime
 import requests
 import time
+import os
+from telegram import send_message
 
 try:
     # Transitional fix for breaking change in LTR559
@@ -35,16 +37,8 @@ GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 GPIO.setup(4,GPIO.OUT)
 
-logging.basicConfig(
-    format='%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%Y-%m-%d %H:%M:%S')
-
-logging.info("""all-in-one.py - Displays readings from all of Enviro plus' sensors
-
-Press Ctrl+C to exit!
-
-""")
+logging.basicConfig(filename=os.getcwd()+"/LOG.all_in_one.txt", filemode='w',
+    format='%(name)s - %(levelname)s - %(message)s')
 
 # BME280 temperature/pressure/humidity sensor
 bme280 = BME280()
@@ -413,6 +407,7 @@ try:
         except Exception as e:
             print(e)
             logging.error(e)
+            send_message(e)
 
 
 
