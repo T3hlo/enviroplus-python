@@ -197,7 +197,7 @@ def save_data(data, message, output_dir='/home/pi/datasets/'):
 
 # Tuning factor for compensation. Decrease this number to adjust the
 # temperature down, and increase to adjust up
-factor = 1.3
+factor = 2.1
 
 # Raspberry Pi ID to send to Luftdaten
 id = "raspi-" + get_serial_number()
