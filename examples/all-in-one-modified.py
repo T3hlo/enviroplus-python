@@ -197,7 +197,7 @@ def save_data(data, message, output_dir='/home/pi/datasets/'):
 
 # Tuning factor for compensation. Decrease this number to adjust the
 # temperature down, and increase to adjust up
-factor = 1.8
+factor = 1.3
 
 # Raspberry Pi ID to send to Luftdaten
 id = "raspi-" + get_serial_number()
@@ -222,15 +222,7 @@ variables = ["temperature",
              "pm25",
              "pm10",
              "wifi"]
-#
-# variables = ["temperature",
-#              "pressure",
-#              "humidity",
-#              "light",
-#              "oxidised",
-#              "reduced",
-#              "nh3",
-#              "wifi"]
+
 
 def sensor_querry(cpu_temps):
     '''
@@ -253,12 +245,6 @@ def sensor_querry(cpu_temps):
 
     #humidity
     humi = bme280.get_humidity()
-
-    # light
-    # if proximity < 10:
-    #     light = ltr559.get_lux()
-    # else:
-    #     light = 1
 
     # oxidised gas
     oxi = gas.read_all()
