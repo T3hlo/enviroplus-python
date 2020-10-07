@@ -209,19 +209,19 @@ delay = 0.5  # Debounce the proximity tap
 mode = 0  # The starting mode
 last_page = 0
 light = 1
-
-# Create a values dict to store the data
-variables = ["temperature",
-             "pressure",
-             "humidity",
-             "light",
-             "oxidised",
-             "reduced",
-             "nh3",
-             "pm1",
-             "pm25",
-             "pm10",
-             "wifi"]
+#
+# # Create a values dict to store the data
+# variables = ["temperature",
+#              "pressure",
+#              "humidity",
+#              "light",
+#              "oxidised",
+#              "reduced",
+#              "nh3",
+#              "pm1",
+#              "pm25",
+#              "pm10",
+#              "wifi"]
 
 
 def sensor_querry(cpu_temps):
@@ -241,7 +241,7 @@ def sensor_querry(cpu_temps):
     temp = raw_temp - ((avg_cpu_temp - raw_temp) / factor)
 
     # pressure
-    pres = bme280.get_pressure()
+    pres = bme280.get_pressure() *100
 
     #humidity
     humi = bme280.get_humidity()
@@ -326,10 +326,10 @@ def send_to_luftdaten(values, id):
         return False
 
 
-values = {}
+# values = {}
 
-for v in variables:
-    values[v] = [1] * WIDTH
+# for v in variables:
+#     values[v] = [1] * WIDTH
 
 data = []
 start_time = time.time()
