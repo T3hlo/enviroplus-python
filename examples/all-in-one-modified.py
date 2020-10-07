@@ -282,7 +282,7 @@ def sensor_querry(cpu_temps):
     else:
         pm10 = float(pm10.pm_ug_per_m3(10))
 
-    return timestamp, temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps
+    return timestamp, temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps, avg_cpu_temp
     #return timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps
 
 def send_to_luftdaten(values, id):
@@ -357,8 +357,8 @@ try:
             #proximity = ltr559.get_proximity()
 
             # Querry all sensors:
-            timestamp, temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps = sensor_querry(cpu_temps)
-            data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10]))
+            timestamp, temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps, avg_cpu_temp = sensor_querry(cpu_temps)
+            data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, factor, avg_cpu_temp]))
 
             #timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps = sensor_querry(cpu_temps)
             #data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3]))
@@ -378,8 +378,7 @@ try:
                 update_time = time.time()
                 print("Response: {}\n".format("ok" if resp else "failed"))
                 display_luftdaten(resp)
-                for i in range(0,3):
-                    flash_LED(0.1)
+                flash_LED(0.1)
 
             else:
                 display_status(time_since_update)
@@ -390,6 +389,8 @@ try:
                 data, start_time = save_data(data, 'Scheduled data saving!')
                 for i in range(0,5):
                     flash_LED(0.1)
+
+
         except Exception as e:
             print(e)
             logging.error(e)
