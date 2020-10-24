@@ -37,7 +37,7 @@ GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 GPIO.setup(4,GPIO.OUT)
 
-logging.basicConfig(filename=os.getcwd()+"/LOG.all_in_one.txt", filemode='w',
+logging.basicConfig(filename=os.getcwd()+"/LOG_all_in_one.txt", filemode='w',
     format='%(name)s - %(levelname)s - %(message)s')
 
 # BME280 temperature/pressure/humidity sensor
@@ -186,12 +186,25 @@ def get_cpu_temperature():
 
 
 def save_data(data, message, output_dir='/home/pi/datasets/'):
+
+    file_name = output_dir + 'sensor_data.csv'
+    headers = ['timestamp', 'temperature', 'pressure', 'humidity', 'oxidising', 'reducing', 'nh3', 'pm1', 'pm25', 'pm10',
+               'avg_cpu_temp', 'raw_temp', 'correction_factor']
     print(message)
 
-    with open(output_dir + 'sensor_data.csv', 'w') as f1:
-        writer = csv.writer(f1, delimiter=',')  # lineterminator='\n',
-        for row in data:
-            writer.writerow(row)
+    if os.path.isfile(file_name):
+        with open(file_name, 'a', encoding="utf-8") as outfile:
+            writer = csv.writer(outfile)
+            for row in data:
+                writer.writerow(row)
+    else:
+        with open(file_name, 'w') as outfile:
+            os.chmod(file_name, 0o777)
+            writer = csv.writer(outfile)
+            writer.writerow(headers)
+            for row in data:
+                writer.writerow(row)
+
     return [], time.time()
 
 
@@ -209,8 +222,8 @@ delay = 0.5  # Debounce the proximity tap
 mode = 0  # The starting mode
 last_page = 0
 light = 1
-#
-# # Create a values dict to store the data
+
+# Create a values dict to store the data
 # variables = ["temperature",
 #              "pressure",
 #              "humidity",
@@ -222,7 +235,15 @@ light = 1
 #              "pm25",
 #              "pm10",
 #              "wifi"]
-
+#
+# variables = ["temperature",
+#              "pressure",
+#              "humidity",
+#              "light",
+#              "oxidised",
+#              "reduced",
+#              "nh3",
+#              "wifi"]
 
 def sensor_querry(cpu_temps):
     '''
@@ -241,10 +262,16 @@ def sensor_querry(cpu_temps):
     temp = raw_temp - ((avg_cpu_temp - raw_temp) / factor)
 
     # pressure
-    pres = bme280.get_pressure() *100
+    pres = bme280.get_pressure()
 
     #humidity
     humi = bme280.get_humidity()
+
+    # light
+    # if proximity < 10:
+    #     light = ltr559.get_lux()
+    # else:
+    #     light = 1
 
     # oxidised gas
     oxi = gas.read_all()
@@ -282,7 +309,7 @@ def sensor_querry(cpu_temps):
     else:
         pm10 = float(pm10.pm_ug_per_m3(10))
 
-    return timestamp, temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps
+    return timestamp, temp, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps, avg_cpu_temp, raw_temp
     #return timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps
 
 def send_to_luftdaten(values, id):
@@ -325,12 +352,6 @@ def send_to_luftdaten(values, id):
     else:
         return False
 
-
-# values = {}
-
-# for v in variables:
-#     values[v] = [1] * WIDTH
-
 data = []
 start_time = time.time()
 
@@ -350,6 +371,7 @@ def flash_LED(seconds):
 
 
 logging.error('Error:')
+
 # The main loop
 try:
     while True:
@@ -357,8 +379,8 @@ try:
             #proximity = ltr559.get_proximity()
 
             # Querry all sensors:
-            timestamp, temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps = sensor_querry(cpu_temps)
-            data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10]))
+            timestamp, temp, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps, avg_cpu_temp, raw_temp = sensor_querry(cpu_temps)
+            data.append(np.array([timestamp, temp, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, avg_cpu_temp, raw_temp, factor]))
 
             #timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps = sensor_querry(cpu_temps)
             #data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3]))
@@ -386,10 +408,11 @@ try:
                 flash_LED(0.1)
 
 
-            if (time.time()-start_time)/60 >10:
+            if (time.time()-start_time)/60 >15:
                 data, start_time = save_data(data, 'Scheduled data saving!')
                 for i in range(0,5):
                     flash_LED(0.1)
+
         except Exception as e:
             print(e)
             logging.error(e)
