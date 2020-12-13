@@ -193,7 +193,7 @@ def save_data(data, message, output_dir='/home/pi/datasets/'):
     print(message)
 
     if os.path.isfile(file_name):
-        with open(file_name, 'a', encoding="utf-8") as outfile:
+        with open(file_name, 'a') as outfile:
             writer = csv.writer(outfile)
             for row in data:
                 writer.writerow(row)
@@ -205,7 +205,6 @@ def save_data(data, message, output_dir='/home/pi/datasets/'):
             for row in data:
                 writer.writerow(row)
 
-    return [], time.time()
 
 
 # Tuning factor for compensation. Decrease this number to adjust the
@@ -379,8 +378,8 @@ try:
             #proximity = ltr559.get_proximity()
 
             # Querry all sensors:
-            timestamp, temp, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps, avg_cpu_temp, raw_temp = sensor_querry(cpu_temps)
-            data.append(np.array([timestamp, temp, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, avg_cpu_temp, raw_temp, factor]))
+            timestamp, temp_raw, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps, avg_cpu_temp, temp = sensor_querry(cpu_temps)
+            data.append(np.array([timestamp, temp_raw, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, avg_cpu_temp, temp, factor]))
 
             #timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps = sensor_querry(cpu_temps)
             #data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3]))
@@ -403,15 +402,26 @@ try:
                 for i in range(0,3):
                     flash_LED(0.1)
 
+                # if (time.time() - start_time) / 60 > 2:
+                #     print((time.time() - start_time) / 60)
+                save_data(data, 'Scheduled data saving!')
+
+                data = []
+
+
+
+                flash_LED(0.01)
+
             else:
                 display_status(time_since_update)
                 flash_LED(0.1)
 
 
-            if (time.time()-start_time)/60 >15:
-                data, start_time = save_data(data, 'Scheduled data saving!')
-                for i in range(0,5):
-                    flash_LED(0.1)
+            # if (time.time()-start_time)/60 >2:
+            #     print((time.time()-start_time)/60 )
+            #     data, start_time = save_data(data, 'Scheduled data saving!')
+            #     for i in range(0,5):
+            #         flash_LED(0.1)
 
         except Exception as e:
             print(e)
