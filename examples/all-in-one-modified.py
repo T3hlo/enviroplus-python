@@ -222,32 +222,14 @@ mode = 0  # The starting mode
 last_page = 0
 light = 1
 
-# Create a values dict to store the data
-# variables = ["temperature",
-#              "pressure",
-#              "humidity",
-#              "light",
-#              "oxidised",
-#              "reduced",
-#              "nh3",
-#              "pm1",
-#              "pm25",
-#              "pm10",
-#              "wifi"]
-#
-# variables = ["temperature",
-#              "pressure",
-#              "humidity",
-#              "light",
-#              "oxidised",
-#              "reduced",
-#              "nh3",
-#              "wifi"]
+
 
 def sensor_querry(cpu_temps):
     '''
     Get data from all sensors.
     '''
+
+    factor = 2.25
 
     # get timestamp
     timestamp = datetime.now().strftime("%Y-%m-%d, %H:%M:%S")  # current date and time
@@ -259,6 +241,9 @@ def sensor_querry(cpu_temps):
     avg_cpu_temp = sum(cpu_temps) / float(len(cpu_temps))
     raw_temp = bme280.get_temperature()
     temp = raw_temp - ((avg_cpu_temp - raw_temp) / factor)
+
+    print(temp)
+
 
     # pressure
     pres = bme280.get_pressure()
