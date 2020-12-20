@@ -185,25 +185,25 @@ def get_cpu_temperature():
     return float(output[output.index('=') + 1:output.rindex("'")])
 
 
-def save_data(data, message, output_dir='/home/pi/datasets/'):
-
-    file_name = output_dir + 'sensor_data.csv'
-    headers = ['timestamp', 'temperature', 'pressure', 'humidity', 'oxidising', 'reducing', 'nh3', 'pm1', 'pm25', 'pm10',
-               'avg_cpu_temp', 'raw_temp', 'correction_factor']
-    print(message)
-
-    if os.path.isfile(file_name):
-        with open(file_name, 'a') as outfile:
-            writer = csv.writer(outfile)
-            for row in data:
-                writer.writerow(row)
-    else:
-        with open(file_name, 'w') as outfile:
-            os.chmod(file_name, 0o777)
-            writer = csv.writer(outfile)
-            writer.writerow(headers)
-            for row in data:
-                writer.writerow(row)
+#def save_data(data, message, output_dir='/home/pi/datasets/'):
+    #
+    # file_name = output_dir + 'sensor_data.csv'
+    # headers = ['timestamp', 'temperature', 'pressure', 'humidity', 'oxidising', 'reducing', 'nh3', 'pm1', 'pm25', 'pm10',
+    #            'avg_cpu_temp', 'raw_temp', 'correction_factor']
+    # print(message)
+    #
+    # if os.path.isfile(file_name):
+    #     with open(file_name, 'a') as outfile:
+    #         writer = csv.writer(outfile)
+    #         for row in data:
+    #             writer.writerow(row)
+    # else:
+    #     with open(file_name, 'w') as outfile:
+    #         os.chmod(file_name, 0o777)
+    #         writer = csv.writer(outfile)
+    #         writer.writerow(headers)
+    #         for row in data:
+    #             writer.writerow(row)
 
 
 
@@ -224,12 +224,10 @@ light = 1
 
 
 
-def sensor_querry(cpu_temps):
+def sensor_querry(cpu_temps, factor):
     '''
     Get data from all sensors.
     '''
-
-    factor = 2.25
 
     # get timestamp
     timestamp = datetime.now().strftime("%Y-%m-%d, %H:%M:%S")  # current date and time
@@ -250,12 +248,6 @@ def sensor_querry(cpu_temps):
 
     #humidity
     humi = bme280.get_humidity()
-
-    # light
-    # if proximity < 10:
-    #     light = ltr559.get_lux()
-    # else:
-    #     light = 1
 
     # oxidised gas
     oxi = gas.read_all()
@@ -356,62 +348,98 @@ def flash_LED(seconds):
 
 logging.error('Error:')
 
+
+# INITIALISE  WRITER
+output_dir='/home/pi/datasets/'
+file_name = output_dir + 'sensor_data.csv'
+headers = ['timestamp', 'temperature', 'pressure', 'humidity', 'oxidising', 'reducing', 'nh3', 'pm1', 'pm25',
+                   'pm10', 'avg_cpu_temp', 'raw_temp', 'correction_factor']
 # The main loop
+
+send_message('Starting air quality station...')
+
 try:
-    while True:
-        try:
-            #proximity = ltr559.get_proximity()
 
-            # Querry all sensors:
-            timestamp, temp_raw, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps, avg_cpu_temp, temp = sensor_querry(cpu_temps)
-            data.append(np.array([timestamp, temp_raw, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, avg_cpu_temp, temp, factor]))
+    if os.path.isfile(file_name)==False:
+        os.chmod(file_name, 0o777)
 
-            #timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps = sensor_querry(cpu_temps)
-            #data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3]))
+    with open(file_name, 'a') as outfile:
+        writer = csv.writer(outfile)
 
-            # Send to luftdaten
-            time_since_update = time.time() - update_time
+    # else:
+    #     with open(file_name, 'w') as outfile:
+    #         os.chmod(file_name, 0o777)
+    #         writer = csv.writer(outfile)
+    #         writer.writerow(headers)
+    #         for row in data:
+    #             writer.writerow(row)
+        while True:
+            try:
+                #proximity = ltr559.get_proximity()
 
-            if time_since_update > 145:
-                to_send = {}
-                to_send["temperature"] = "{:.2f}".format(temp)
-                to_send["pressure"] = "{:.2f}".format(pres)
-                to_send["humidity"] = "{:.2f}".format(humi)
-                to_send["P2"] = str(pm25)
-                to_send["P1"] = str(pm10)
+                # Querry all sensors:
+                timestamp, temp, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps, avg_cpu_temp, raw_temp = sensor_querry(cpu_temps, factor)
+               # data.append(np.array([timestamp, temp, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, avg_cpu_temp, raw_temp, factor]))
+                data = [np.array([timestamp, temp, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, avg_cpu_temp, raw_temp, factor])]
 
-                resp = send_to_luftdaten(to_send, id)
-                update_time = time.time()
-                print("Response: {}\n".format("ok" if resp else "failed"))
-                display_luftdaten(resp)
-                for i in range(0,3):
+
+
+
+                for row in data:
+                    writer.writerow(row)
+
+                #timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps = sensor_querry(cpu_temps)
+                #data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3]))
+
+                # Send to luftdaten
+                time_since_update = time.time() - update_time
+
+                if time_since_update > 145:
+                    to_send = {}
+                    to_send["temperature"] = "{:.2f}".format(temp)
+                    to_send["pressure"] = "{:.2f}".format(pres)
+                    to_send["humidity"] = "{:.2f}".format(humi)
+                    to_send["P2"] = str(pm25)
+                    to_send["P1"] = str(pm10)
+
+                    resp = send_to_luftdaten(to_send, id)
+                    update_time = time.time()
+                    print("Response: {}\n".format("ok" if resp else "failed"))
+                    display_luftdaten(resp)
+                    for i in range(0,3):
+                        flash_LED(0.1)
+
+                    # if (time.time() - start_time) / 60 > 2:
+                    #     print((time.time() - start_time) / 60)
+                  #  save_data(data, 'Scheduled data saving!')
+
+                    data = []
+
+
+
+                    flash_LED(0.01)
+
+                else:
+                    display_status(time_since_update)
                     flash_LED(0.1)
 
-                # if (time.time() - start_time) / 60 > 2:
-                #     print((time.time() - start_time) / 60)
-                save_data(data, 'Scheduled data saving!')
-
-                data = []
 
 
 
-                flash_LED(0.01)
-
-            else:
-                display_status(time_since_update)
-                flash_LED(0.1)
 
 
-            # if (time.time()-start_time)/60 >2:
-            #     print((time.time()-start_time)/60 )
-            #     data, start_time = save_data(data, 'Scheduled data saving!')
-            #     for i in range(0,5):
-            #         flash_LED(0.1)
 
-        except Exception as e:
-            print(e)
-            logging.error(e)
-            send_message(e)
+
+                # if (time.time()-start_time)/60 >2:
+                #     print((time.time()-start_time)/60 )
+                #     data, start_time = save_data(data, 'Scheduled data saving!')
+                #     for i in range(0,5):
+                #         flash_LED(0.1)
+
+            except Exception as e:
+                print(e)
+                logging.error(e)
+                send_message(e)
 
 
 
@@ -419,3 +447,4 @@ try:
 except KeyboardInterrupt:
     #data, start_time = save_data(data, 'Saving data after exception!')
     sys.exit()
+

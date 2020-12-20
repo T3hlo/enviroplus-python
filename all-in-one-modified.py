@@ -3,7 +3,16 @@
 import time
 import colorsys
 import sys
+from subprocess import check_output
 import ST7735
+import csv
+import numpy as np
+from datetime import datetime
+import requests
+import time
+import os
+from telegram import send_message
+
 try:
     # Transitional fix for breaking change in LTR559
     from ltr559 import LTR559
@@ -14,23 +23,22 @@ except ImportError:
 from bme280 import BME280
 from pms5003 import PMS5003, ReadTimeoutError as pmsReadTimeoutError
 from enviroplus import gas
-from subprocess import PIPE, Popen
+from subprocess import PIPE, Popen, check_output
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 from fonts.ttf import RobotoMedium as UserFont
 import logging
+import RPi.GPIO as GPIO
+import logging
 
-logging.basicConfig(
-    format='%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%Y-%m-%d %H:%M:%S')
 
-logging.info("""all-in-one.py - Displays readings from all of Enviro plus' sensors
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+GPIO.setup(4,GPIO.OUT)
 
-Press Ctrl+C to exit!
-
-""")
+logging.basicConfig(filename=os.getcwd()+"/LOG_all_in_one.txt", filemode='w',
+    format='%(name)s - %(levelname)s - %(message)s')
 
 # BME280 temperature/pressure/humidity sensor
 bme280 = BME280()
@@ -57,13 +65,75 @@ HEIGHT = st7735.height
 # Set up canvas and font
 img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
 draw = ImageDraw.Draw(img)
-font_size = 20
+font_size = 16
 font = ImageFont.truetype(UserFont, font_size)
 
 message = ""
 
-# The position of the top bar
-top_pos = 25
+
+# Display Raspberry Pi serial and Wi-Fi status on LCD
+def display_status(time_since_update):
+    wifi_status = "connected" if check_wifi() else "disconnected"
+    text_colour = (255, 255, 255)
+    back_colour = (0, 170, 170) if check_wifi() else (85, 15, 15)
+    id = get_serial_number()
+    message = "{}\nWi-Fi: {}\n{} min since update".format(id, wifi_status, round(time_since_update/60, 1))
+    img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    size_x, size_y = draw.textsize(message, font)
+    x = (WIDTH - size_x) / 2
+    y = (HEIGHT / 2) - (size_y / 2)
+    draw.rectangle((0, 0, 160, 80), back_colour)
+    draw.text((x, y), message, font=font, fill=text_colour)
+    st7735.display(img)
+def display_luftdaten(resp):
+    now = datetime.now()
+    now.strftime('%Y-%m-%d %H:%M:%S')
+    text_colour = (255, 255, 255)
+    back_colour = (0, 102, 51) if resp else (85, 15, 15)
+    if resp:
+        p ='OK'
+    else:
+        p = 'failed'
+
+    message = "Luftdaten\nUpload: {}\n{}".format(p, now.strftime('%Y-%m-%d %H:%M:%S'))
+    img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    size_x, size_y = draw.textsize(message, font)
+    x = (WIDTH - size_x) / 2
+    y = (HEIGHT / 2) - (size_y / 2)
+    draw.rectangle((0, 0, 160, 80), back_colour)
+    draw.text((x, y), message, font=font, fill=text_colour)
+    st7735.display(img)
+
+def display_start():
+    wifi_status = "connected" if check_wifi() else "disconnected"
+    text_colour = (0, 0, 0)
+    back_colour = (255, 255, 0)
+    id = get_serial_number()
+    message = "System waking up.\nWi-Fi: {}\nPlease wait...".format(wifi_status)
+    img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    size_x, size_y = draw.textsize(message, font)
+    x = (WIDTH - size_x) / 2
+    y = (HEIGHT / 2) - (size_y / 2)
+    draw.rectangle((0, 0, 160, 80), back_colour)
+    draw.text((x, y), message, font=font, fill=text_colour)
+    st7735.display(img)
+
+
+def owl():
+    back_colour = (0, 0, 0)
+    text_colour = (255, 255, 0)
+    message = "      .___,\n___('v')___\n  '''-\._./-''\n        ^ ^  "
+    img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    size_x, size_y = draw.textsize(message, font)
+    x = (WIDTH - size_x) / 2
+    y = (HEIGHT / 2) - (size_y / 2)
+    draw.rectangle((0, 0, 160, 80), back_colour)
+    draw.text((x, y), message, font=font, fill=text_colour)
+    st7735.display(img)
 
 
 # Displays data and text on the 0.96" LCD
@@ -91,6 +161,22 @@ def display_text(variable, data, unit):
     draw.text((0, 0), message, font=font, fill=(0, 0, 0))
     st7735.display(img)
 
+# Get Raspberry Pi serial number to use as ID
+def get_serial_number():
+    with open('/proc/cpuinfo', 'r') as f:
+        for line in f:
+            if line[0:6] == 'Serial':
+                return line.split(":")[1].strip()
+
+
+# Check for Wi-Fi connection
+# Ping google
+def check_wifi():
+    try:
+        check_output(["ping", "-c", "1", "google.com"])
+        return True
+    except:
+        return False
 
 # Get the temperature of the CPU for compensation
 def get_cpu_temperature():
@@ -99,35 +185,52 @@ def get_cpu_temperature():
     return float(output[output.index('=') + 1:output.rindex("'")])
 
 
+#def save_data(data, message, output_dir='/home/pi/datasets/'):
+    #
+    # file_name = output_dir + 'sensor_data.csv'
+    # headers = ['timestamp', 'temperature', 'pressure', 'humidity', 'oxidising', 'reducing', 'nh3', 'pm1', 'pm25', 'pm10',
+    #            'avg_cpu_temp', 'raw_temp', 'correction_factor']
+    # print(message)
+    #
+    # if os.path.isfile(file_name):
+    #     with open(file_name, 'a') as outfile:
+    #         writer = csv.writer(outfile)
+    #         for row in data:
+    #             writer.writerow(row)
+    # else:
+    #     with open(file_name, 'w') as outfile:
+    #         os.chmod(file_name, 0o777)
+    #         writer = csv.writer(outfile)
+    #         writer.writerow(headers)
+    #         for row in data:
+    #             writer.writerow(row)
+
+
+
 # Tuning factor for compensation. Decrease this number to adjust the
 # temperature down, and increase to adjust up
-factor = 2.25
+factor = 1.3
+
+# Raspberry Pi ID to send to Luftdaten
+id = "raspi-" + get_serial_number()
+
 
 cpu_temps = [get_cpu_temperature()] * 5
 
 delay = 0.5  # Debounce the proximity tap
-mode = 0     # The starting mode
+mode = 0  # The starting mode
 last_page = 0
 light = 1
 
-# Create a values dict to store the data
-variables = ["temperature",
-             "pressure",
-             "humidity",
-             "light",
-             "oxidised",
-             "reduced",
-             "nh3",
-             "pm1",
-             "pm25",
-             "pm10"]
 
-values = {}
 
-def sensor_querry(cpu_temps):
+def sensor_querry(cpu_temps, factor):
     '''
     Get data from all sensors.
     '''
+
+    # get timestamp
+    timestamp = datetime.now().strftime("%Y-%m-%d, %H:%M:%S")  # current date and time
 
     # temperature
     cpu_temp = get_cpu_temperature()
@@ -137,17 +240,14 @@ def sensor_querry(cpu_temps):
     raw_temp = bme280.get_temperature()
     temp = raw_temp - ((avg_cpu_temp - raw_temp) / factor)
 
+    print(temp)
+
+
     # pressure
-    pres = bme280.get_pressure()
+    pres = int(bme280.get_pressure())
 
     #humidity
     humi = bme280.get_humidity()
-
-    # light
-    if proximity < 10:
-        light = ltr559.get_lux()
-    else:
-        light = 1
 
     # oxidised gas
     oxi = gas.read_all()
@@ -160,7 +260,6 @@ def sensor_querry(cpu_temps):
     # NH3
     nh3 = gas.read_all()
     nh3 = nh3.nh3 / 1000
-
 
     # PM1
     try:
@@ -186,82 +285,166 @@ def sensor_querry(cpu_temps):
     else:
         pm10 = float(pm10.pm_ug_per_m3(10))
 
-    return temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temp
+    return timestamp, temp, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps, avg_cpu_temp, raw_temp
+    #return timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps
+
+def send_to_luftdaten(values, id):
+    pm_values = dict(i for i in values.items() if i[0].startswith("P"))
+    temp_values = dict(i for i in values.items() if not i[0].startswith("P"))
+
+    pm_values_json = [{"value_type": key, "value": val} for key, val in pm_values.items()]
+    temp_values_json = [{"value_type": key, "value": val} for key, val in temp_values.items()]
+
+    resp_1 = requests.post(
+        "https://api.luftdaten.info/v1/push-sensor-data/",
+        json={
+            "software_version": "enviro-plus 0.0.1",
+            "sensordatavalues": pm_values_json
+        },
+        headers={
+            "X-PIN": "1",
+            "X-Sensor": id,
+            "Content-Type": "application/json",
+            "cache-control": "no-cache"
+        }
+    )
+
+    resp_2 = requests.post(
+        "https://api.luftdaten.info/v1/push-sensor-data/",
+        json={
+            "software_version": "enviro-plus 0.0.1",
+            "sensordatavalues": temp_values_json
+        },
+        headers={
+            "X-PIN": "11",
+            "X-Sensor": id,
+            "Content-Type": "application/json",
+            "cache-control": "no-cache"
+        }
+    )
+
+    if resp_1.ok and resp_2.ok:
+        return True
+    else:
+        return False
+
+data = []
+start_time = time.time()
+
+time_since_update = 0
+update_time = time.time()
+
+display_start()
+time.sleep(5)
+owl()
+time.sleep(10)
+
+def flash_LED(seconds):
+    display_status(time_since_update)
+    GPIO.output(4, GPIO.HIGH)
+    time.sleep(seconds)
+    GPIO.output(4, GPIO.LOW)
 
 
+logging.error('Error:')
 
 
-# for v in variables:
-#     values[v] = [1] * WIDTH
-
+# INITIALISE  WRITER
+output_dir='/home/pi/datasets/'
+file_name = output_dir + 'sensor_data.csv'
+headers = ['timestamp', 'temperature', 'pressure', 'humidity', 'oxidising', 'reducing', 'nh3', 'pm1', 'pm25',
+                   'pm10', 'avg_cpu_temp', 'raw_temp', 'correction_factor']
 # The main loop
+
+send_message('Starting air quality station...')
+
 try:
-    while True:
-        proximity = ltr559.get_proximity()
+
+    if os.path.isfile(file_name)==False:
+        os.chmod(file_name, 0o777)
+
+    with open(file_name, 'a') as outfile:
+        writer = csv.writer(outfile)
+
+    # else:
+    #     with open(file_name, 'w') as outfile:
+    #         os.chmod(file_name, 0o777)
+    #         writer = csv.writer(outfile)
+    #         writer.writerow(headers)
+    #         for row in data:
+    #             writer.writerow(row)
+        while True:
+            try:
+                #proximity = ltr559.get_proximity()
+
+                # Querry all sensors:
+                timestamp, temp, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps, avg_cpu_temp, raw_temp = sensor_querry(cpu_temps, factor)
+               # data.append(np.array([timestamp, temp, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, avg_cpu_temp, raw_temp, factor]))
+                data = [np.array([timestamp, temp, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, avg_cpu_temp, raw_temp, factor])]
 
 
-        # Querry all sensors:
-
-        temp, pres, humi, light, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps = sensor_querry()
 
 
-        # If the proximity crosses the threshold, toggle the mode
-        if proximity > 1500 and time.time() - last_page > delay:
-            mode += 1
-            mode %= len(variables)
-            last_page = time.time()
+                for row in data:
+                    writer.writerow(row)
 
-        # One mode for each variable
-        if mode == 0:
-            # variable = "temperature"
-            unit = "C"
-            display_text(variables[mode], temp, unit)
+                #timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps = sensor_querry(cpu_temps)
+                #data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3]))
 
-        if mode == 1:
-            # variable = "pressure"
-            unit = "hPa"
-            display_text(variables[mode], pres, unit)
+                # Send to luftdaten
+                time_since_update = time.time() - update_time
 
-        if mode == 2:
-            # variable = "humidity"
-            unit = "%"
-            display_text(variables[mode], humi, unit)
+                if time_since_update > 145:
+                    to_send = {}
+                    to_send["temperature"] = "{:.2f}".format(temp)
+                    to_send["pressure"] = "{:.2f}".format(pres)
+                    to_send["humidity"] = "{:.2f}".format(humi)
+                    to_send["P2"] = str(pm25)
+                    to_send["P1"] = str(pm10)
 
-        if mode == 3:
-            # variable = "light"
-            unit = "Lux"
-            display_text(variables[mode], light, unit)
+                    resp = send_to_luftdaten(to_send, id)
+                    update_time = time.time()
+                    print("Response: {}\n".format("ok" if resp else "failed"))
+                    display_luftdaten(resp)
+                    for i in range(0,3):
+                        flash_LED(0.1)
 
-        if mode == 4:
-            # variable = "oxidised"
-            unit = "kO"
-            display_text(variables[mode], oxi, unit)
+                    # if (time.time() - start_time) / 60 > 2:
+                    #     print((time.time() - start_time) / 60)
+                  #  save_data(data, 'Scheduled data saving!')
 
-        if mode == 5:
-            # variable = "reduced"
-            unit = "kO"
-            display_text(variables[mode], redu, unit)
+                    data = []
 
-        if mode == 6:
-            # variable = "nh3"
-            unit = "kO"
-            display_text(variables[mode], nh3, unit)
 
-        if mode == 7:
-            # variable = "pm1"
-            unit = "ug/m3"
-            display_text(variables[mode], pm1, unit)
 
-        if mode == 8:
-            # variable = "pm25"
-            unit = "ug/m3"
-            display_text(variables[mode], pm25, unit)
+                    flash_LED(0.01)
 
-        if mode == 9:
-            # variable = "pm10"
-            unit = "ug/m3"
-            display_text(variables[mode], pm10, unit)
+                else:
+                    display_status(time_since_update)
+                    flash_LED(0.1)
+
+
+
+
+
+
+
+
+                # if (time.time()-start_time)/60 >2:
+                #     print((time.time()-start_time)/60 )
+                #     data, start_time = save_data(data, 'Scheduled data saving!')
+                #     for i in range(0,5):
+                #         flash_LED(0.1)
+
+            except Exception as e:
+                print(e)
+                logging.error(e)
+                send_message(e)
+
+
 
 # Exit cleanly
 except KeyboardInterrupt:
-    pass
+    #data, start_time = save_data(data, 'Saving data after exception!')
+    sys.exit()
+
