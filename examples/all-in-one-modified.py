@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
-
-import time
 import colorsys
 import sys
-from subprocess import check_output
 import ST7735
 import csv
 import numpy as np
@@ -28,7 +25,6 @@ from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 from fonts.ttf import RobotoMedium as UserFont
-import logging
 import RPi.GPIO as GPIO
 import logging
 
@@ -67,9 +63,6 @@ img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
 draw = ImageDraw.Draw(img)
 font_size = 16
 font = ImageFont.truetype(UserFont, font_size)
-
-message = ""
-
 
 # Display Raspberry Pi serial and Wi-Fi status on LCD
 def display_status(time_since_update):
@@ -185,31 +178,9 @@ def get_cpu_temperature():
     return float(output[output.index('=') + 1:output.rindex("'")])
 
 
-#def save_data(data, message, output_dir='/home/pi/datasets/'):
-    #
-    # file_name = output_dir + 'sensor_data.csv'
-    # headers = ['timestamp', 'temperature', 'pressure', 'humidity', 'oxidising', 'reducing', 'nh3', 'pm1', 'pm25', 'pm10',
-    #            'avg_cpu_temp', 'raw_temp', 'correction_factor']
-    # print(message)
-    #
-    # if os.path.isfile(file_name):
-    #     with open(file_name, 'a') as outfile:
-    #         writer = csv.writer(outfile)
-    #         for row in data:
-    #             writer.writerow(row)
-    # else:
-    #     with open(file_name, 'w') as outfile:
-    #         os.chmod(file_name, 0o777)
-    #         writer = csv.writer(outfile)
-    #         writer.writerow(headers)
-    #         for row in data:
-    #             writer.writerow(row)
-
-
-
 # Tuning factor for compensation. Decrease this number to adjust the
 # temperature down, and increase to adjust up
-factor = 1.3
+factor = 2.0
 
 # Raspberry Pi ID to send to Luftdaten
 id = "raspi-" + get_serial_number()
@@ -240,11 +211,13 @@ def sensor_querry(cpu_temps, factor):
     raw_temp = bme280.get_temperature()
     temp = raw_temp - ((avg_cpu_temp - raw_temp) / factor)
 
+    print(factor)
     print(temp)
+    print(avg_cpu_temp)
 
 
     # pressure
-    pres = bme280.get_pressure()
+    pres = bme280.get_pressure()*100
 
     #humidity
     humi = bme280.get_humidity()
@@ -332,7 +305,10 @@ data = []
 start_time = time.time()
 
 time_since_update = 0
+time_since_save = 0
 update_time = time.time()
+save_time = time.time()
+
 
 display_start()
 time.sleep(5)
@@ -346,7 +322,7 @@ def flash_LED(seconds):
     GPIO.output(4, GPIO.LOW)
 
 
-logging.error('Error:')
+#logging.error('Error:')
 
 
 # INITIALISE  WRITER
@@ -356,95 +332,75 @@ headers = ['timestamp', 'temperature', 'pressure', 'humidity', 'oxidising', 'red
                    'pm10', 'avg_cpu_temp', 'raw_temp', 'correction_factor']
 # The main loop
 
-send_message('Starting air quality station...')
+#send_message('Starting air quality station...')
+logging.info('starting up')
 
-try:
+#try:
 
-    if os.path.isfile(file_name)==False:
-        os.chmod(file_name, 0o777)
+# with open(file_name, 'a') as file:
 
-    with open(file_name, 'a') as outfile:
-        writer = csv.writer(outfile)
+while True:
+        try:
+            #proximity = ltr559.get_proximity()
 
-    # else:
-    #     with open(file_name, 'w') as outfile:
-    #         os.chmod(file_name, 0o777)
-    #         writer = csv.writer(outfile)
-    #         writer.writerow(headers)
-    #         for row in data:
-    #             writer.writerow(row)
-        while True:
-            try:
-                #proximity = ltr559.get_proximity()
+            # Querry all sensors:
+            timestamp, temp, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps, avg_cpu_temp, raw_temp = sensor_querry(cpu_temps, factor)
+           # data.append(np.array([timestamp, temp, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, avg_cpu_temp, raw_temp, factor]))
+            data = [np.array([timestamp, temp, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, avg_cpu_temp, raw_temp, factor])]
 
-                # Querry all sensors:
-                timestamp, temp, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, cpu_temps, avg_cpu_temp, raw_temp = sensor_querry(cpu_temps, factor)
-               # data.append(np.array([timestamp, temp, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, avg_cpu_temp, raw_temp, factor]))
-                data = [np.array([timestamp, temp, pres, humi, oxi, redu, nh3, pm1, pm25, pm10, avg_cpu_temp, raw_temp, factor])]
+            time_since_save = time.time() - save_time
 
+            if time_since_save > 60:
 
+                t = open(file_name, "a+")
+                t.write(data[0])
+                t.close()
+                save_time = time.time()
 
-
-                for row in data:
-                    writer.writerow(row)
-
-                #timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps = sensor_querry(cpu_temps)
-                #data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3]))
-
-                # Send to luftdaten
-                time_since_update = time.time() - update_time
-
-                if time_since_update > 145:
-                    to_send = {}
-                    to_send["temperature"] = "{:.2f}".format(temp)
-                    to_send["pressure"] = "{:.2f}".format(pres)
-                    to_send["humidity"] = "{:.2f}".format(humi)
-                    to_send["P2"] = str(pm25)
-                    to_send["P1"] = str(pm10)
-
-                    resp = send_to_luftdaten(to_send, id)
-                    update_time = time.time()
-                    print("Response: {}\n".format("ok" if resp else "failed"))
-                    display_luftdaten(resp)
-                    for i in range(0,3):
-                        flash_LED(0.1)
-
-                    # if (time.time() - start_time) / 60 > 2:
-                    #     print((time.time() - start_time) / 60)
-                  #  save_data(data, 'Scheduled data saving!')
-
-                    data = []
-
-
-
+                for i in range(0,2):
                     flash_LED(0.01)
 
-                else:
-                    display_status(time_since_update)
-                    flash_LED(0.1)
+            #timestamp, temp, pres, humi, light, oxi, redu, nh3, cpu_temps = sensor_querry(cpu_temps)
+            #data.append(np.array([timestamp, temp, pres, humi, light, oxi, redu, nh3]))
+
+            # Send to luftdaten
+            time_since_update = time.time() - update_time
+
+            if time_since_update > 145:
+                to_send = {}
+                to_send["temperature"] = "{:.2f}".format(temp)
+                to_send["pressure"] = "{:.2f}".format(pres)
+                to_send["humidity"] = "{:.2f}".format(humi)
+                to_send["P2"] = str(pm25)
+                to_send["P1"] = str(pm10)
+
+                resp = send_to_luftdaten(to_send, id)
+                update_time = time.time()
+                print("Response: {}\n".format("ok" if resp else "failed"))
+                display_luftdaten(resp)
+
+                for i in range(0,3):
+                    flash_LED(0.01)
+
+                data = []
+
+            else:
+                display_status(time_since_update)
+                flash_LED(0.1)
+            print('sleeping...')
+            time.sleep(20)
 
 
-
-
-
-
-
-
-                # if (time.time()-start_time)/60 >2:
-                #     print((time.time()-start_time)/60 )
-                #     data, start_time = save_data(data, 'Scheduled data saving!')
-                #     for i in range(0,5):
-                #         flash_LED(0.1)
-
-            except Exception as e:
-                print(e)
-                logging.error(e)
-                send_message(e)
+        except Exception as e:
+            print(e)
+            logging.error(e)
+            #send_message(e)
 
 
 
 # Exit cleanly
-except KeyboardInterrupt:
-    #data, start_time = save_data(data, 'Saving data after exception!')
-    sys.exit()
+# except KeyboardInterrupt:
+#     #data, start_time = save_data(data, 'Saving data after exception!')
+#     sys.exit()
+
 
